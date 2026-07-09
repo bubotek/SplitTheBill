@@ -1,2 +1,798 @@
 <!DOCTYPE html>
-<html><head><meta http-equiv="refresh" content="0;url=split-the-bill-final.html"></head></html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="SplitBill">
+<meta name="theme-color" content="#3A1C0F">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Split the Bill — BuBoTek</title>
+<meta name="description" content="Scan your receipt, tap what you ordered, and see exactly what you owe — tax and tip included. Everything runs on your phone. Nothing is uploaded.">
+<link rel="canonical" href="https://split.bubotek.com/">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://split.bubotek.com/">
+<meta property="og:site_name" content="BuBoTek">
+<meta property="og:title" content="Split the Bill — BuBoTek">
+<meta property="og:description" content="Scan your receipt, tap what you ordered, and see exactly what you owe — tax and tip included. Everything runs on your phone. Nothing is uploaded.">
+<meta property="og:image" content="https://split.bubotek.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Split the Bill — a receipt, split fairly, by BuBoTek.">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Split the Bill — BuBoTek">
+<meta name="twitter:description" content="Scan your receipt, tap what you ordered, and see exactly what you owe — tax and tip included. Everything runs on your phone. Nothing is uploaded.">
+<meta name="twitter:image" content="https://split.bubotek.com/og-image.png">
+<style>
+  :root { --bg:#FAF6F0;--card:#fff;--ink:#2C2420;--muted:#8A8078;--accent:#E86A33;--accent-lt:#FFF0E8;--green:#3A9A6B;--green-lt:#E8F5EE;--border:#E8E2DA; }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);max-width:480px;margin:0 auto;min-height:100vh;-webkit-font-smoothing:antialiased}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .screen{display:none}.screen.active{display:block;animation:fadeIn .25s ease}
+  .hero{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:85vh;padding:40px 24px;text-align:center}
+  h1{font-size:28px;font-weight:800;letter-spacing:-.5px;margin:4px 0}
+  .hint{font-size:14px;color:var(--muted);margin:0 0 24px}
+  .big-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;max-width:300px;padding:16px 24px;border-radius:16px;border:none;background:var(--accent);color:#fff;font-size:16px;font-weight:700;cursor:pointer;margin:0 auto 12px;font-family:inherit}
+  .big-btn:active{transform:scale(.97)}
+  .big-btn.sec{background:var(--card);color:var(--ink);border:2px solid var(--border)}
+  .big-btn.green{background:var(--green)}
+  .top-bar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:1px solid var(--border)}
+  .top-bar b{font-size:17px}
+  .pill{padding:7px 14px;border-radius:18px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .pill.muted{background:var(--border);color:var(--ink)}
+  .label{display:block;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .row{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;border:2px solid var(--border);margin-bottom:6px;background:var(--card)}
+  .row.warm{background:#FFF8F0;border-color:#E8D8C8}
+  .num{width:24px;height:24px;border-radius:12px;background:var(--border);color:var(--muted);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .inp{border:none;outline:none;font-size:15px;font-family:inherit;padding:4px 0;background:transparent;min-width:0}
+  .inp-box{border:1px solid var(--border);border-radius:10px;padding:8px 12px}
+  .x-btn{cursor:pointer;color:#fff;background:#E86A33;font-size:18px;width:28px;height:28px;border-radius:14px;border:none;font-family:inherit;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;font-weight:700}
+  .x-btn.subtle{background:transparent;color:var(--muted);width:auto;height:auto;font-size:20px;padding:0 4px}
+  .add-btn{width:100%;padding:12px;border-radius:12px;border:2px dashed var(--border);background:transparent;color:var(--muted);font-size:14px;cursor:pointer;font-family:inherit}
+  .clear-btn{width:100%;padding:8px;border-radius:10px;border:1px solid #E8D8C8;background:#FFF8F0;color:#C0392B;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
+  .bottom-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 16px 20px;max-width:480px;margin:0 auto;background:var(--bg);border-top:1px solid var(--border);z-index:10}
+  .f-row{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:3px 0}
+  .item-btn{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border-radius:14px;margin-bottom:6px;border:2px solid var(--border);background:var(--card);cursor:pointer;font-family:inherit;text-align:left;transition:all .12s}
+  .item-btn.claimed{border-color:var(--accent);background:var(--accent-lt)}
+  .chk-on{width:24px;height:24px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
+  .chk-off{width:24px;height:24px;border-radius:7px;border:2px solid var(--border);flex-shrink:0}
+  .share-card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:10px;box-shadow:0 2px 12px rgba(0,0,0,.06);border-left:4px solid}
+  .progress-track{height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin-bottom:10px}
+  .progress-fill{height:100%;border-radius:4px;transition:width .3s,background .3s}
+  .tag{font-size:10px;color:#fff;padding:1px 6px;border-radius:8px}
+  .dollar{position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--muted);pointer-events:none}
+  .tip-btn{padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;border:1px solid var(--border);cursor:pointer;font-family:inherit;background:transparent;color:var(--ink)}
+  .tip-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .color-dot{width:14px;height:14px;border-radius:7px;flex-shrink:0}
+  .photo-thumb{flex-shrink:0;position:relative;cursor:pointer;border-radius:12px;overflow:hidden;border:2px solid var(--border);width:90px;height:110px}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover}
+  .photo-badge{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px}
+  .photo-x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.7);color:#fff;font-size:14px;width:20px;height:20px;border-radius:10px;display:flex;align-items:center;justify-content:center;line-height:1}
+  .add-photo-btn{flex-shrink:0;width:90px;height:110px;border-radius:12px;border:2px dashed #3A7BD5;background:#E8F0FF;color:#3A7BD5;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+  .person-chip{display:flex;align-items:center;gap:4px;padding:7px 12px;border-radius:20px;border:2px solid;cursor:pointer;white-space:nowrap;transition:all .15s;flex-shrink:0;-webkit-appearance:none;appearance:none;text-align:left}
+  .person-chip input{background:transparent;border:none;outline:none;font-size:14px;font-weight:700;padding:0;font-family:inherit}
+  .modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;cursor:pointer}
+  .modal img{max-width:100%;max-height:100%;border-radius:8px}
+  .modal-close{position:absolute;top:20px;right:20px;background:#fff;width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#000}
+  input[type=file]{display:none}
+  input[type=number]::-webkit-inner-spin-button{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ═══════ HOME ═══════ -->
+<div id="home" class="screen active">
+  <div class="hero">
+    <div style="font-size:56px">🧾</div>
+    <h1>Split the Bill</h1>
+    <p class="hint">Scan your receipt or enter items manually</p>
+    <button class="big-btn" onclick="startFresh('camera')">📸 Scan Receipt</button>
+    <button class="big-btn sec" onclick="startFresh('gallery')">🖼️ Upload Photo</button>
+    <button class="big-btn green" onclick="startFresh('manual')">✏️ Enter Manually</button>
+    <p style="font-size:11px;color:#bbb;margin-top:12px;max-width:260px">Your bill is saved on this device — reopen anytime to pick up where you left off</p>
+    <p style="font-size:11px;color:#c4b8ac;margin-top:18px;letter-spacing:.3px">Powered by <a href="https://bubotek.com" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;text-decoration:none">BuBoTek</a> · split.bubotek.com</p>
+  </div>
+</div>
+
+<!-- ═══════ SCANNING ═══════ -->
+<div id="scanning" class="screen">
+  <div class="hero" style="gap:16px">
+    <div id="scan-preview" style="width:180px;height:240px;border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.15);margin-bottom:8px"></div>
+    <div style="width:100%;max-width:280px">
+      <div class="progress-track"><div class="progress-fill" id="scan-progress" style="width:0%;background:var(--accent)"></div></div>
+      <p style="font-size:15px;font-weight:600;text-align:center" id="scan-status">Preparing…</p>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:4px" id="scan-sub">Processing locally on your device…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ENTRY ═══════ -->
+<div id="entry" class="screen">
+  <div class="top-bar">
+    <span class="pill muted" onclick="go('home')">← Home</span>
+    <b>Edit Items</b>
+    <div style="width:60px"></div>
+  </div>
+  <div style="padding:0 16px 200px">
+    <div id="photos-area" style="margin:12px 0"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <label class="label" style="margin:0">Items</label>
+      <span style="font-size:11px;color:var(--muted)" id="items-count"></span>
+    </div>
+    <div id="items-list"></div>
+    <button class="add-btn" onclick="addItem()">+ Add Item</button>
+    <button class="clear-btn" onclick="clearAllItems()">Clear all items & start fresh</button>
+
+    <label class="label" style="margin-top:20px">Tax (from bill)</label>
+    <div class="row warm">
+      <div style="flex:1;font-weight:600;font-size:15px">Total Tax</div>
+      <div style="position:relative"><span class="dollar" style="left:8px">$</span>
+        <input class="inp" type="number" inputmode="decimal" step="0.01" id="tax-input" placeholder="0.00" oninput="persist()"
+          style="width:100px;text-align:right;padding-left:20px;font-size:16px;font-weight:600">
+      </div>
+    </div>
+
+    <label class="label" style="margin-top:20px">Additional Charges</label>
+    <p style="font-size:12px;color:var(--muted);margin:-4px 0 8px">Kitchen staff, service charge, etc.</p>
+    <div id="charges-list"></div>
+    <button class="add-btn" onclick="addCharge()">+ Add Charge</button>
+
+    <label class="label" style="margin-top:20px">Who's splitting?</label>
+    <div id="people-list"></div>
+    <button class="add-btn" style="margin-top:4px" onclick="addPerson()">+ Add Person</button>
+  </div>
+  <div class="bottom-bar" id="entry-footer"></div>
+</div>
+
+<!-- ═══════ ASSIGN ═══════ -->
+<div id="assign" class="screen">
+  <div class="top-bar">
+    <span class="pill muted" onclick="go('entry')">← Edit</span>
+    <b>Tap Your Items</b>
+    <span class="pill" onclick="go('summary')">Done →</span>
+  </div>
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border);display:flex;gap:6px;overflow-x:auto;align-items:center" id="assign-people"></div>
+  <p style="font-size:12px;color:var(--muted);text-align:center;margin:8px 0 4px" id="assign-hint"></p>
+  <div style="padding:4px 16px 230px" id="assign-items"></div>
+  <div class="bottom-bar" id="assign-footer" style="background:#fff;border-top:1px solid var(--border);padding-top:10px"></div>
+</div>
+
+<!-- ═══════ SUMMARY ═══════ -->
+<div id="summary" class="screen">
+  <div class="top-bar">
+    <span class="pill muted" onclick="go('assign')">← Back</span>
+    <b>Who Owes What</b>
+    <div style="width:50px"></div>
+  </div>
+  <div style="padding:8px 16px 130px" id="summary-content"></div>
+  <div class="bottom-bar" style="display:flex;gap:8px">
+    <button class="big-btn green" style="flex:1;max-width:100%;margin:0" onclick="shareSummary()">📤 Share</button>
+    <button class="big-btn" style="flex:1;max-width:100%;margin:0" onclick="startFresh('home')">🧾 New Bill</button>
+  </div>
+</div>
+
+<div id="photo-modal" style="display:none"></div>
+
+<input type="file" id="cam-input" accept="image/*" capture="environment">
+<input type="file" id="gal-input" accept="image/*">
+<input type="file" id="add-photo-input" accept="image/*" capture="environment">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const COLORS=[{bg:"#E86A33",lt:"#FFF0E8"},{bg:"#3A7BD5",lt:"#E8F0FF"},{bg:"#9B59B6",lt:"#F3E8FF"},{bg:"#E84393",lt:"#FFE8F3"},{bg:"#00B894",lt:"#E8FFF6"},{bg:"#FDCB6E",lt:"#FFF8E1"}];
+
+let items, charges, people, claims, tipPct, customTip, photos, active;
+
+function freshState(){
+  if(photos)photos.forEach(p=>URL.revokeObjectURL(p.url));
+  items=[{id:uid(),name:"",price:""}];
+  charges=[];
+  people=[{id:uid(),name:"Me",ci:0},{id:uid(),name:"Friend",ci:1}];
+  claims={};
+  tipPct=18;
+  customTip="";
+  photos=[];
+  active=null;
+  const ti=document.getElementById("tax-input");
+  if(ti)ti.value="";
+}
+freshState();
+
+function uid(){return Math.random().toString(36).slice(2,8)}
+function money(n){return"$"+Math.abs(n).toFixed(2)}
+function val(s){return parseFloat(s)||0}
+function esc(s){return String(s||"").replace(/"/g,"&quot;").replace(/</g,"&lt;")}
+
+// ═══════════════════════════════════════
+//  PERSISTENCE — survive refresh / phone lock at the table
+// ═══════════════════════════════════════
+const LS_KEY="stb_state_v1";
+function persist(){
+  try{
+    const ti=document.getElementById("tax-input");
+    const screen=document.querySelector(".screen.active")?.id||"home";
+    localStorage.setItem(LS_KEY,JSON.stringify({
+      v:1,items,charges,people,claims,tipPct,customTip,active,
+      tax:ti?ti.value:"",screen,ts:Date.now()
+    }));
+  }catch(e){}
+}
+function hasContent(s){
+  return (Array.isArray(s.items)&&s.items.some(i=>(i.name&&i.name.trim())||i.price))
+    || (s.claims&&Object.keys(s.claims).length>0)
+    || (Array.isArray(s.charges)&&s.charges.length>0);
+}
+function restore(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw)return false;
+    const s=JSON.parse(raw);
+    if(!s||!Array.isArray(s.items)||!hasContent(s))return false;
+    items=s.items;
+    charges=Array.isArray(s.charges)?s.charges:[];
+    people=(Array.isArray(s.people)&&s.people.length>=1)?s.people:people;
+    claims=s.claims||{};
+    tipPct=(typeof s.tipPct==="number")?s.tipPct:18;
+    customTip=s.customTip??"";
+    active=s.active||null;
+    photos=[]; // blob URLs can't be restored — items were already extracted
+    const ti=document.getElementById("tax-input");
+    if(ti)ti.value=s.tax||"";
+    return (s.screen&&s.screen!=="scanning")?s.screen:"entry";
+  }catch(e){return false}
+}
+function clearSaved(){try{localStorage.removeItem(LS_KEY)}catch(e){}}
+
+function go(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  if(id==="entry")renderEntry();
+  if(id==="assign"){if(!active)active=people[0].id;renderAssign();}
+  if(id==="summary")renderSummary();
+  persist();
+}
+
+function startFresh(action){
+  clearSaved();
+  freshState();
+  if(action==="camera")document.getElementById("cam-input").click();
+  else if(action==="gallery")document.getElementById("gal-input").click();
+  else if(action==="manual")go("entry");
+  else if(action==="home")go("home");
+}
+
+document.getElementById("cam-input").addEventListener("change",handleNewPhoto);
+document.getElementById("gal-input").addEventListener("change",handleNewPhoto);
+document.getElementById("add-photo-input").addEventListener("change",handleAddPhoto);
+
+async function handleNewPhoto(e){
+  const file=e.target.files?.[0];if(!file)return;e.target.value="";
+  const url=URL.createObjectURL(file);
+  photos=[{id:uid(),url}];
+
+  go("scanning");
+  document.getElementById("scan-preview").innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+  setProgress(0,"Enhancing image…");
+
+  try{
+    const blob=await processImage(file);
+    setProgress(15,"Loading OCR engine…");
+    if(typeof Tesseract==="undefined") throw new Error("OCR engine not loaded — check your connection and reload");
+    setProgress(30,"Recognizing text…");
+    const worker=await Tesseract.createWorker("eng",1,{
+      logger:m=>{if(m.status==="recognizing text")setProgress(30+Math.round(m.progress*55),"Recognizing text…")}
+    });
+    const{data}=await worker.recognize(blob);
+    await worker.terminate();
+
+    setProgress(92,"Parsing receipt…");
+    const result=parseReceipt(data.text);
+
+    if(result.items.length>0){
+      items=result.items.map(it=>({id:uid(),name:it.name,price:String(it.price)}));
+    }else{
+      items=[{id:uid(),name:"",price:""}];
+    }
+    if(result.tax>0){
+      const ti=document.getElementById("tax-input");
+      if(ti)ti.value=result.tax;
+    }
+    if(result.charges.length>0)charges=result.charges;
+
+    setProgress(100,`Found ${result.items.length} items`);
+    document.getElementById("scan-sub").textContent="Review and fix anything wrong";
+    setTimeout(()=>go("entry"),700);
+  }catch(err){
+    console.error(err);
+    setProgress(100,"OCR failed — entering manual mode");
+    document.getElementById("scan-sub").textContent=err?.message||err?.toString()||"Unknown error";
+    setTimeout(()=>go("entry"),1500);
+  }
+}
+
+async function handleAddPhoto(e){
+  const file=e.target.files?.[0];if(!file)return;e.target.value="";
+  const url=URL.createObjectURL(file);
+  photos.push({id:uid(),url});
+
+  // If we're already on entry, run OCR on the new page and append
+  go("scanning");
+  document.getElementById("scan-preview").innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+  setProgress(0,`Scanning page ${photos.length}…`);
+
+  try{
+    const blob=await processImage(file);
+    setProgress(20,"Recognizing text…");
+    if(typeof Tesseract==="undefined") throw new Error("OCR engine not loaded — check your connection and reload");
+    const worker=await Tesseract.createWorker("eng",1,{
+      logger:m=>{if(m.status==="recognizing text")setProgress(20+Math.round(m.progress*65),"Recognizing text…")}
+    });
+    const{data}=await worker.recognize(blob);
+    await worker.terminate();
+
+    setProgress(92,"Adding new items…");
+    const result=parseReceipt(data.text);
+
+    // Append items rather than replacing
+    if(result.items.length>0){
+      // Remove empty placeholder if it's the only item
+      if(items.length===1&&!items[0].name.trim()&&!items[0].price)items=[];
+      result.items.forEach(it=>items.push({id:uid(),name:it.name,price:String(it.price)}));
+    }
+    // For tax, take the larger value (last page often has the total)
+    if(result.tax>0){
+      const ti=document.getElementById("tax-input");
+      const cur=val(ti?.value);
+      if(result.tax>cur&&ti)ti.value=result.tax;
+    }
+    if(result.charges.length>0){
+      result.charges.forEach(c=>charges.push(c));
+    }
+
+    setProgress(100,`Added ${result.items.length} items from page ${photos.length}`);
+    setTimeout(()=>go("entry"),700);
+  }catch(err){
+    console.error(err);
+    setProgress(100,"Page added (OCR failed)");
+    setTimeout(()=>go("entry"),1000);
+  }
+}
+
+function removePhoto(pid){
+  const p=photos.find(x=>x.id===pid);
+  if(p)URL.revokeObjectURL(p.url);
+  photos=photos.filter(x=>x.id!==pid);
+  renderEntry();
+}
+
+function expandPhoto(pid){
+  const p=photos.find(x=>x.id===pid);if(!p)return;
+  const m=document.getElementById("photo-modal");
+  m.className="modal";
+  m.style.display="flex";
+  m.innerHTML=`<img src="${p.url}" alt=""><span class="modal-close">×</span>`;
+  m.onclick=()=>{m.style.display="none";m.className=""};
+}
+
+function setProgress(pct,msg){
+  const bar=document.getElementById("scan-progress");
+  bar.style.width=pct+"%";
+  bar.style.background=pct>=100?"var(--green)":"var(--accent)";
+  document.getElementById("scan-status").textContent=msg;
+}
+
+// ═══════════════════════════════════════
+//  IMAGE PROCESSING
+// ═══════════════════════════════════════
+function processImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const canvas=document.createElement("canvas");
+      let w=img.width,h=img.height;
+      const max=2000,min=800;
+      if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}
+      else if(w<min&&h<min){const s=min/Math.min(w,h);w=Math.round(w*s);h=Math.round(h*s)}
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(img,0,0,w,h);
+      const d=ctx.getImageData(0,0,w,h),px=d.data;
+      for(let i=0;i<px.length;i+=4){
+        const g=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
+        const v=Math.max(0,Math.min(255,((g/255-.5)*1.5+.5)*255));
+        px[i]=px[i+1]=px[i+2]=v;
+      }
+      ctx.putImageData(d,0,0);
+      canvas.toBlob(b=>b?resolve(b):reject(new Error("Blob failed")),"image/png");
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Image load failed"))};
+    img.src=url;
+  });
+}
+
+// ═══════════════════════════════════════
+//  RECEIPT PARSER — conservative, prefers skipping over wrong items
+// ═══════════════════════════════════════
+function parseReceipt(raw){
+  const lines=raw.split("\n").map(l=>l.trim()).filter(Boolean);
+  const items=[];
+  let subtotal=0,tax=0,total=0;
+  const charges=[];
+
+  // Strict total/tax/charge keyword matchers — case insensitive, anywhere in name
+  const isSubtotal=(s)=>/(sub\s*[\-]?\s*total|\bsubt\b)/i.test(s);
+  const isTotal=(s)=>{
+    if(/(^|\s)(total|amount\s*due|balance\s*due|grand\s*total|amt\s*due|to\s*pay)(\s|$|:)/i.test(s)&&!/sub\s*total/i.test(s)&&!/total\s*before/i.test(s))return true;
+    // catch OCR-mangled totals: short word (3–6 letters) ending in "tal" e.g. "Otal","Tal"
+    const ltrs=s.replace(/[^a-zA-Z]/g,"");
+    return ltrs.length>=3&&ltrs.length<=6&&/[ot]al$/i.test(ltrs);
+  };
+  const isTax=(s)=>/(^|\s)(tax|sales\s*tax|vat|hst|gst|pst|iva)(\s|$|:|\d)/i.test(s);
+  const isTip=(s)=>/(tip|gratuity|suggested|propina)/i.test(s);
+  const isCharge=(s)=>/(service\s*charge|kitchen|surcharge|delivery|auto\s*grat|cover\s*charge|coperto|servizio)/i.test(s);
+
+  // Header/footer junk to skip aggressively
+  const isJunk=(s)=>/^(welcome|thank|visa|mastercard|amex|card|auth|change|cash|balance|guest|server|waiter|table|check|order|date|time|tel|phone|fax|address|www\.|http|receipt|copy|merchant|customer|approved|transaction|ref|terminal|closed|opened|dine.?in|take.?out|takeout|payment|amount|tender|paid|discover|debit|credit|qty|item|description|price|host|cashier|register|store|location|branch|invoice|bill|guests?|persons?|adults?|children|signature|sign\s*here|tip\s*line|x\s*$)/i.test(s)
+    || /\b(discoun|reusable\s*bag|mastercard|visa|amex|discover|auth\s*code|approved)\b/i.test(s);
+
+  // Price patterns
+  const priceEnd=/\$?\s*(\d{1,4}[.,]\d{2})\s*$/;
+  const qtyPfx=/^(\d+)\s*[xX×@]\s*/;
+  // Multi-line item: quantity/price row like "2 @ $3.49 ea $6.98" or "3 x $1.99 $5.97"
+  const qtyPriceLine=/^\d+\s*[@xX×]\s*\$?[\d.,]+\s*(ea|each|\/lb|lb)?\s*/i;
+
+  function cleanName(raw){
+    return raw
+      .replace(/^[\-.*#>|:~`^]+/,"")
+      .replace(/[\-.*#>|:~`^]+$/,"")
+      .replace(/[.\-_~]{2,}/g," ")
+      .replace(/\b\d{6,}\b/g,"")
+      .replace(/\s+\b(NF|TX|T)\b\s*$/i,"")
+      .replace(/\s{2,}/g," ")
+      .replace(/^[^a-zA-Z0-9]+/,"")
+      .trim();
+  }
+
+  function isValidName(nm){
+    if(!nm||nm.length<2||nm.length>40)return false;
+    if((nm.match(/[a-zA-Z]/g)||[]).length<4)return false;
+    if(!/[a-zA-Z]{2,}/.test(nm))return false;
+    return true;
+  }
+
+  let pendingName=""; // buffer for item name on a line with no price
+
+  for(const line of lines){
+    if(line.length<3){pendingName="";continue}
+
+    const pm=line.match(priceEnd);
+
+    // Line has no price — check if it looks like an item name to buffer
+    if(!pm){
+      const candidate=cleanName(line);
+      if(isValidName(candidate)&&!isJunk(candidate)&&!isSubtotal(candidate)&&!isTotal(candidate)&&!isTax(candidate)&&!isTip(candidate)&&!isCharge(candidate)){
+        pendingName=candidate;
+      } else {
+        pendingName="";
+      }
+      continue;
+    }
+
+    const pv=parseFloat(pm[1].replace(",","."));
+    if(isNaN(pv)||pv<=0||pv>9999){pendingName="";continue}
+
+    let nm=cleanName(line.slice(0,pm.index).trim());
+
+    // If this line is a quantity/price descriptor (e.g. "2 @ $3.49 ea") and we have a
+    // buffered name from the previous line, use the buffered name
+    if(qtyPriceLine.test(nm)&&pendingName){
+      nm=pendingName;
+      pendingName="";
+    } else {
+      pendingName="";
+      if(!nm||nm.length<2)continue;
+    }
+
+    // Check for special line types FIRST
+    if(isSubtotal(nm)){subtotal=pv;continue}
+    if(isTotal(nm)){total=pv;continue}
+    if(isTax(nm)){tax=pv;continue}
+    if(isTip(nm))continue;
+    if(isCharge(nm)){charges.push({id:uid(),name:nm,amount:String(pv)});continue}
+
+    if(isJunk(nm))continue;
+    if(!isValidName(nm))continue;
+
+    // Strip quantity prefix
+    let qty=1;
+    const qm=nm.match(qtyPfx);
+    if(qm){qty=parseInt(qm[1]);nm=nm.slice(qm[0].length).trim()}
+
+    nm=nm.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+    items.push({name:nm,price:pv,qty});
+  }
+
+  // Sanity check: if we have a subtotal and the items don't add up to it (with tolerance),
+  // we might have included a total line as an item — try to find and remove it
+  if(items.length>0){
+    const ref=subtotal||total;
+    // Remove any item whose price alone is >90% of the subtotal — it's almost certainly a total/charge line
+    if(ref>0) items=items.filter(it=>!(it.price>ref*0.9&&items.length>1));
+    // If sum is still >130% of subtotal, try to remove the item matching the total or subtotal value
+    if(ref>0){
+      const sum=items.reduce((s,i)=>s+i.price*i.qty,0);
+      if(sum>ref*1.3){
+        for(let i=items.length-1;i>=0;i--){
+          if(Math.abs(items[i].price-subtotal)<0.5||Math.abs(items[i].price-total)<0.5||Math.abs(items[i].price-(sum-ref))<0.5){
+            items.splice(i,1);break;
+          }
+        }
+      }
+    }
+  }
+
+  return{items,subtotal,tax,total,charges};
+}
+
+// ═══════════════════════════════════════
+//  RENDER: ENTRY
+// ═══════════════════════════════════════
+function renderEntry(){
+  // Photos area
+  const pa=document.getElementById("photos-area");
+  if(photos.length>0){
+    pa.innerHTML=`
+      <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+        ${photos.map((ph,idx)=>`
+          <div class="photo-thumb" onclick="expandPhoto('${ph.id}')">
+            <img src="${ph.url}" alt="">
+            <div class="photo-badge">${idx+1}/${photos.length}</div>
+            <span class="photo-x" onclick="event.stopPropagation();removePhoto('${ph.id}')">×</span>
+          </div>
+        `).join("")}
+        <button class="add-photo-btn" onclick="document.getElementById('add-photo-input').click()">
+          <div style="font-size:24px">📸</div>
+          <div>Add Page</div>
+        </button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 0;text-align:center">Tap a photo to expand · Add more pages for long receipts</p>`;
+  }else{
+    pa.innerHTML=`<button class="add-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;background:#E8F0FF;border-color:#3A7BD5;color:#3A7BD5" onclick="document.getElementById('add-photo-input').click()">📸 Take Photo for Reference</button>`;
+  }
+
+  // Items count
+  const validCount=items.filter(i=>i.name.trim()&&val(i.price)>0).length;
+  document.getElementById("items-count").textContent=`${validCount} valid`;
+
+  // Items list
+  document.getElementById("items-list").innerHTML=items.map((it,idx)=>`
+    <div class="row">
+      <div class="num">${idx+1}</div>
+      <input class="inp" style="flex:2" placeholder="Item name" value="${esc(it.name)}" oninput="items[${idx}].name=this.value;updateFooter()">
+      <div style="position:relative;flex:1"><span class="dollar">$</span>
+        <input class="inp" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${esc(it.price)}"
+          oninput="items[${idx}].price=this.value;updateFooter()" style="text-align:right;width:100%;padding-left:16px">
+      </div>
+      <button class="x-btn" onclick="removeItem(${idx})" title="Delete">×</button>
+    </div>`).join("");
+
+  // Charges
+  document.getElementById("charges-list").innerHTML=charges.map((ch,i)=>`
+    <div class="row warm">
+      <input class="inp" style="flex:2" placeholder="e.g. Kitchen staff" value="${esc(ch.name)}" oninput="charges[${i}].name=this.value">
+      <div style="position:relative;flex:1"><span class="dollar">$</span>
+        <input class="inp" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${esc(ch.amount)}"
+          oninput="charges[${i}].amount=this.value" style="text-align:right;width:100%;padding-left:16px">
+      </div>
+      <button class="x-btn" onclick="charges.splice(${i},1);renderEntry()">×</button>
+    </div>`).join("");
+
+  // People
+  document.getElementById("people-list").innerHTML=people.map((p,i)=>{
+    const c=COLORS[p.ci%COLORS.length];
+    return`<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div class="color-dot" style="background:${c.bg}"></div>
+      <input class="inp inp-box" style="flex:1" value="${esc(p.name)}" placeholder="Name" oninput="people[${i}].name=this.value">
+      ${people.length>2?`<button class="x-btn subtle" onclick="removePerson('${p.id}')">×</button>`:""}
+    </div>`;
+  }).join("");
+
+  updateFooter();
+}
+
+function updateFooter(){
+  const vi=items.filter(i=>i.name.trim()&&val(i.price)>0);
+  const sub=vi.reduce((s,i)=>s+val(i.price),0);
+  document.getElementById("items-count").textContent=`${vi.length} valid`;
+  document.getElementById("entry-footer").innerHTML=`
+    <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px">
+      <span>${vi.length} item${vi.length!==1?"s":""} · ${people.length} people</span>
+      <span>Subtotal ${money(sub)}</span>
+    </div>
+    <button class="big-btn" style="max-width:100%;margin:0;opacity:${vi.length===0?.4:1}" onclick="if(${vi.length}>0)go('assign')">Next: Claim Items →</button>`;
+  persist();
+}
+
+function addItem(){items.push({id:uid(),name:"",price:""});renderEntry()}
+function removeItem(i){if(items.length<=1)items=[{id:uid(),name:"",price:""}];else{const id=items[i].id;items.splice(i,1);delete claims[id];}renderEntry()}
+function clearAllItems(){if(confirm("Clear all items and start over?")){items=[{id:uid(),name:"",price:""}];claims={};renderEntry();}}
+function addCharge(){charges.push({id:uid(),name:"",amount:""});renderEntry()}
+function addPerson(){people.push({id:uid(),name:"Person "+(people.length+1),ci:people.length%COLORS.length});if(document.getElementById("entry").classList.contains("active"))renderEntry();else renderAssign();}
+function removePerson(pid){
+  if(people.length<=2)return;
+  people=people.filter(p=>p.id!==pid);
+  Object.keys(claims).forEach(k=>{if(claims[k])delete claims[k][pid]});
+  if(active===pid)active=people[0].id;
+  if(document.getElementById("entry").classList.contains("active"))renderEntry();
+  else renderAssign();
+}
+
+// ═══════════════════════════════════════
+//  RENDER: ASSIGN
+// ═══════════════════════════════════════
+function renderAssign(){
+  const vi=items.filter(i=>i.name.trim()&&val(i.price)>0);
+  const sub=vi.reduce((s,i)=>s+val(i.price),0);
+  const tax=val(document.getElementById("tax-input")?.value);
+  const tc=charges.reduce((s,c)=>s+val(c.amount),0);
+  const tp=customTip!==""?val(customTip):tipPct;
+  const tipAmt=sub*(tp/100);
+
+  document.getElementById("assign-people").innerHTML=people.map((p)=>{
+    const c=COLORS[p.ci%COLORS.length];const on=active===p.id;
+    return`<button class="person-chip" style="background:${on?c.bg:c.lt};border-color:${c.bg};transform:scale(${on?1.05:1});font-family:inherit;cursor:pointer;color:${on?'#fff':c.bg};font-weight:700;font-size:14px" onclick="setActivePerson('${p.id}')">${esc(p.name)}</button>`;
+  }).join("")+`<button onclick="addPerson()" style="width:32px;height:32px;border-radius:16px;border:2px dashed var(--border);background:transparent;font-size:18px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>`;
+
+  const ap=people.find(p=>p.id===active);
+  document.getElementById("assign-hint").innerHTML=`Select <b>${ap?esc(ap.name):""}</b>, then tap what they ordered`;
+
+  document.getElementById("assign-items").innerHTML=vi.map(it=>{
+    const cl=claims[it.id]||{};const mine=cl[active];
+    const claimers=Object.keys(cl);const n=claimers.length;
+    const tags=claimers.map(cid=>{const cp=people.find(p=>p.id===cid);if(!cp)return"";const cc=COLORS[cp.ci%COLORS.length];return`<span class="tag" style="background:${cc.bg}">${esc(cp.name)}</span>`}).join("");
+    return`<button class="item-btn${mine?" claimed":""}" onclick="toggleClaim('${it.id}')">
+      ${mine?'<div class="chk-on">✓</div>':'<div class="chk-off"></div>'}
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:15px">${esc(it.name)}</div>
+        ${n>1?`<div style="font-size:11px;color:var(--muted)">Split ${n} ways → ${money(val(it.price)/n)} each</div>`:""}
+        ${n>0?`<div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap">${tags}</div>`:""}
+      </div>
+      <div style="font-weight:700;font-size:15px">${money(val(it.price))}</div>
+    </button>`;
+  }).join("");
+
+  const tipBtns=[15,18,20,25].map(p=>`<button class="tip-btn${customTip===""&&tipPct===p?" active":""}" onclick="tipPct=${p};customTip='';renderAssign()">${p}%</button>`).join("");
+  document.getElementById("assign-footer").innerHTML=`
+    <div class="f-row"><span>Subtotal</span><span>${money(sub)}</span></div>
+    <div class="f-row"><span>Tax</span><span>${money(tax)}</span></div>
+    ${tc>0?`<div class="f-row"><span>Charges</span><span>${money(tc)}</span></div>`:""}
+    <div class="f-row">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <span>Tip</span>${tipBtns}
+        <input type="number" inputmode="decimal" placeholder="__%" value="${esc(customTip)}" oninput="customTip=this.value;renderAssign()"
+          style="width:48px;padding:3px 4px;border-radius:6px;border:1px solid var(--border);font-size:11px;text-align:center;font-family:inherit;outline:none">
+      </div>
+      <span>${money(tipAmt)}</span>
+    </div>
+    <div class="f-row" style="font-weight:700;font-size:16px;border-top:2px solid var(--ink);padding-top:6px;margin-top:4px">
+      <span>Total</span><span>${money(sub+tax+tc+tipAmt)}</span>
+    </div>`;
+  persist();
+}
+
+function setActivePerson(pid){
+  active=pid;
+  renderAssign();
+}
+function updateAssignHint(){
+  const ap=people.find(p=>p.id===active);
+  if(ap)document.getElementById('assign-hint').innerHTML=`Select <b>${esc(ap.name)}</b>, then tap what they ordered`;
+}
+
+function toggleClaim(iid){
+  if(!active)return;
+  if(!claims[iid])claims[iid]={};
+  if(claims[iid][active])delete claims[iid][active];else claims[iid][active]=true;
+  renderAssign();
+}
+
+// ═══════════════════════════════════════
+//  RENDER: SUMMARY
+// ═══════════════════════════════════════
+function renderSummary(){
+  const vi=items.filter(i=>i.name.trim()&&val(i.price)>0);
+  const sub=vi.reduce((s,i)=>s+val(i.price),0);
+  const tax=val(document.getElementById("tax-input")?.value);
+  const tc=charges.reduce((s,c)=>s+val(c.amount),0);
+  const tp=customTip!==""?val(customTip):tipPct;
+  const tipAmt=sub*(tp/100);
+  const grand=sub+tax+tc+tipAmt;
+  const taxR=sub>0?tax/sub:0;const chR=sub>0?tc/sub:0;
+  _shareData={rows:[],grand,tip:tp};
+
+  let html="";let allTotal=0;
+  people.forEach(p=>{
+    const c=COLORS[p.ci%COLORS.length];
+    let pSub=0;const pItems=[];
+    vi.forEach(it=>{
+      const cl=claims[it.id]||{};
+      if(cl[p.id]){const n=Object.keys(cl).length;const sh=val(it.price)/n;pSub+=sh;pItems.push({name:it.name,share:sh,split:n})}
+    });
+    const pTax=pSub*taxR,pCh=pSub*chR,pTip=sub>0?(pSub/sub)*tipAmt:0;
+    const pTotal=pSub+pTax+pCh+pTip;allTotal+=pTotal;
+    _shareData.rows.push({name:p.name,total:pTotal});
+
+    html+=`<div class="share-card" style="border-left-color:${c.bg}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:700;font-size:18px;color:${c.bg}">${esc(p.name)}</span>
+        <span style="font-weight:800;font-size:24px">${money(pTotal)}</span>
+      </div>`;
+    if(pItems.length===0){html+=`<p style="color:var(--muted);font-size:13px">No items claimed</p>`}
+    else{
+      pItems.forEach(ci=>{html+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span>${esc(ci.name)}${ci.split>1?` <span style="color:var(--muted)">(÷${ci.split})</span>`:""}</span><span style="font-weight:600">${money(ci.share)}</span></div>`});
+      html+=`<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:6px">`;
+      [["Items",pSub],["Tax",pTax],...(tc>0?[["Charges",pCh]]:[]),[`Tip (${tp}%)`,pTip]].forEach(([l,v])=>{
+        html+=`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:1px 0"><span>${l}</span><span>${money(v)}</span></div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+
+  html+=`<div style="background:var(--green-lt);border-radius:14px;padding:14px;font-size:13px;margin-top:6px">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Verification</div>
+    <div style="display:flex;justify-content:space-between"><span>All shares</span><span style="font-weight:700">${money(allTotal)}</span></div>
+    <div style="display:flex;justify-content:space-between"><span>Bill + ${tp}% tip</span><span style="font-weight:700">${money(grand)}</span></div>
+  </div>`;
+
+  document.getElementById("summary-content").innerHTML=html;
+  persist();
+}
+
+// ═══════════════════════════════════════
+//  SHARE — plain-text breakdown via native share sheet / clipboard
+// ═══════════════════════════════════════
+let _shareData={rows:[],grand:0,tip:0};
+function shareSummary(){
+  const d=_shareData;
+  if(!d.rows||!d.rows.length){alert("Nothing to share yet — claim some items first.");return}
+  const date=new Date().toLocaleDateString();
+  let txt="🧾 Split the Bill — "+date+"\n\n";
+  d.rows.forEach(r=>{txt+=r.name+": "+money(r.total)+"\n"});
+  txt+="\nTotal: "+money(d.grand)+" (incl. "+d.tip+"% tip)\n";
+  txt+="\n— Split with SplitTheBill by BuBoTek\nsplit.bubotek.com";
+  if(navigator.share){
+    navigator.share({title:"Split the Bill",text:txt}).catch(()=>{});
+  }else if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(()=>alert("Summary copied to clipboard")).catch(()=>prompt("Copy the summary:",txt));
+  }else{
+    prompt("Copy the summary:",txt);
+  }
+}
+
+// ═══════════════════════════════════════
+//  BOOT — resume an in-progress bill, then keep autosaving
+// ═══════════════════════════════════════
+(function(){
+  const scr=restore();
+  if(scr)go(scr);
+})();
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")persist()});
+window.addEventListener("pagehide",persist);
+setInterval(persist,2000); // catches inline oninput edits (names/charges) that don't re-render
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

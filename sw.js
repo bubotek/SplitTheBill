@@ -1,5 +1,5 @@
-const CACHE = 'splitbill-v3';
-const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json'];
+const CACHE = 'splitbill-v4';
+const STATIC = ['./', './icon-192.png', './icon-512.png', './manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
