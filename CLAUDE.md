@@ -8,12 +8,12 @@ A BuBoTek PWA (Progressive Web App) for splitting restaurant bills. Mobile-first
 
 | File | Purpose |
 |---|---|
-| `split-the-bill-final.html` | **Main production file** — vanilla JS, fully self-contained. This is what ships. |
-| `split-the-bill-ocr.html` | OCR variant — camera + local OCR to read receipts. Not linked from index yet. |
+| `index.html` | **Main production file** — vanilla JS, fully self-contained, includes Tesseract OCR. This is what ships, served at `/`. |
 | `split-the-bill.jsx` | React component source — reference/migration use only, not served directly. |
+| `vercel.json` | 301 for the old `split-the-bill-final.html` path; no-cache headers on `sw.js` and `manifest.json` |
 | `sw.js` | Service Worker — handles offline caching |
 | `manifest.json` | PWA manifest — name, icons, theme colors, display mode |
-| `index.html` | Shell redirect to `split-the-bill-final.html` |
+| `og-image.png` | 1200×630 social share card |
 | `icon-192.png` / `icon-512.png` | PWA icons |
 
 ## Stack
@@ -21,11 +21,18 @@ A BuBoTek PWA (Progressive Web App) for splitting restaurant bills. Mobile-first
 - **No build step.** No npm, no bundler, no framework.
 - Edit HTML files directly. All JS and CSS lives inline in the HTML.
 - React is loaded via CDN if needed (currently not used in the final HTML).
-- Static assets only — deployable to any static host (Netlify, GitHub Pages, etc.).
+- Static assets only.
+
+## Deployment
+
+- **Live at `https://split.bubotek.com`** — Vercel, project `split-the-bill` under the `BuBoTek's projects` scope, auto-deploys on push to `master`.
+- DNS: `CNAME split → 2b4e85ae262a3b06.vercel-dns-017.com` in the `bubotek.com` zone, which lives on **SiteGround** — only Keith has that access.
+- Vercel's own `*.vercel.app` deployment URLs sit behind Deployment Protection. The public alias is `split-the-bill-nu-self.vercel.app`. Note `split-the-bill.vercel.app` is a **different company's app** — never link it.
+- Netlify was the previous host; the site was deleted on 2026-07-09.
 
 ## How to test
 
-- **Quick check:** Open `split-the-bill-final.html` directly in a browser (file:// works for basic testing).
+- **Quick check:** Open `index.html` directly in a browser (file:// works for basic testing).
 - **PWA / Service Worker testing:** Needs a local HTTP server. Use the `/splitbill-test` skill or run:
   ```
   cmd /c npx serve .
@@ -48,7 +55,7 @@ Font: Fraunces (headings) / Source Sans 3 (body) if fonts are ever added — cur
 
 ## Git & GitHub
 
-- Repo is initialized. Use `bubotek` GitHub account for all pushes.
+- Repo: `bubotek/SplitTheBill` (private). Use the `bubotek` GitHub account for all pushes.
 - Run `gh auth switch --user bubotek` before any `git push` or `gh` command.
 
 ## Skills available
