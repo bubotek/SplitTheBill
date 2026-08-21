@@ -58,8 +58,18 @@
   .clear-btn{width:100%;padding:8px;border-radius:10px;border:1px solid #E8D8C8;background:#FFF8F0;color:#C0392B;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:4px}
   .bottom-bar{position:fixed;bottom:0;left:0;right:0;padding:10px 16px 20px;max-width:480px;margin:0 auto;background:var(--bg);border-top:1px solid var(--border);z-index:10}
   .f-row{display:flex;justify-content:space-between;align-items:center;font-size:14px;padding:3px 0}
-  .item-btn{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border-radius:14px;margin-bottom:6px;border:2px solid var(--border);background:var(--card);cursor:pointer;font-family:inherit;text-align:left;transition:all .12s}
-  .item-btn.claimed{border-color:var(--accent);background:var(--accent-lt)}
+  .item-card{border-radius:14px;margin-bottom:6px;border:2px solid var(--border);background:var(--card);overflow:hidden;transition:all .12s}
+  .item-card.claimed{border-color:var(--accent);background:var(--accent-lt)}
+  .item-main{display:flex;align-items:stretch}
+  .item-hit{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:14px 6px 14px 16px;border:none;background:transparent;cursor:pointer;font-family:inherit;text-align:left;color:inherit}
+  .split-btn{width:42px;flex-shrink:0;border:none;border-left:1px dashed var(--border);background:transparent;color:var(--muted);font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  .split-btn.on{background:var(--accent);color:#fff;border-left-color:var(--accent)}
+  .split-panel{border-top:1px dashed var(--border);padding:12px 14px;background:rgba(255,255,255,.72)}
+  .stp{display:flex;align-items:center;gap:5px;flex-shrink:0}
+  .stp button{width:30px;height:30px;border-radius:15px;border:1.5px solid var(--border);background:var(--card);font-size:17px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+  .stp button:disabled{opacity:.28;cursor:default}
+  .stp b{min-width:20px;text-align:center;font-size:15px}
+  .pline{display:flex;align-items:center;gap:8px;padding:4px 0}
   .chk-on{width:24px;height:24px;border-radius:7px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
   .chk-off{width:24px;height:24px;border-radius:7px;border:2px solid var(--border);flex-shrink:0}
   .share-card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:10px;box-shadow:0 2px 12px rgba(0,0,0,.06);border-left:4px solid}
@@ -188,12 +198,13 @@
 <script>
 const COLORS=[{bg:"#E86A33",lt:"#FFF0E8"},{bg:"#3A7BD5",lt:"#E8F0FF"},{bg:"#9B59B6",lt:"#F3E8FF"},{bg:"#E84393",lt:"#FFE8F3"},{bg:"#00B894",lt:"#E8FFF6"},{bg:"#FDCB6E",lt:"#FFF8E1"}];
 
-let items, charges, people, claims, tipPct, customTip, photos, active;
+let items, charges, people, claims, tipPct, customTip, photos, active, panelOpen={};
 
 function freshState(){
   if(photos)photos.forEach(p=>URL.revokeObjectURL(p.url));
-  items=[{id:uid(),name:"",price:""}];
+  items=[{id:uid(),name:"",price:"",ways:1}];
   charges=[];
+  panelOpen={};
   people=[{id:uid(),name:"Me",ci:0},{id:uid(),name:"Friend",ci:1}];
   claims={};
   tipPct=18;
@@ -235,8 +246,9 @@ function restore(){
     if(!raw)return false;
     const s=JSON.parse(raw);
     if(!s||!Array.isArray(s.items)||!hasContent(s))return false;
-    items=s.items;
+    items=s.items.map(it=>({...it,ways:Math.max(1,parseInt(it.ways)||1)}));
     charges=Array.isArray(s.charges)?s.charges:[];
+    panelOpen={};
     people=(Array.isArray(s.people)&&s.people.length>=1)?s.people:people;
     claims=s.claims||{};
     tipPct=(typeof s.tipPct==="number")?s.tipPct:18;
@@ -296,9 +308,9 @@ async function handleNewPhoto(e){
     const result=parseReceipt(data.text);
 
     if(result.items.length>0){
-      items=result.items.map(it=>({id:uid(),name:it.name,price:String(it.price)}));
+      items=result.items.map(it=>({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qty||1}));
     }else{
-      items=[{id:uid(),name:"",price:""}];
+      items=[{id:uid(),name:"",price:"",ways:1}];
     }
     if(result.tax>0){
       const ti=document.getElementById("tax-input");
@@ -344,7 +356,7 @@ async function handleAddPhoto(e){
     if(result.items.length>0){
       // Remove empty placeholder if it's the only item
       if(items.length===1&&!items[0].name.trim()&&!items[0].price)items=[];
-      result.items.forEach(it=>items.push({id:uid(),name:it.name,price:String(it.price)}));
+      result.items.forEach(it=>items.push({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qty||1}));
     }
     // For tax, take the larger value (last page often has the total)
     if(result.tax>0){
@@ -621,9 +633,9 @@ function updateFooter(){
   persist();
 }
 
-function addItem(){items.push({id:uid(),name:"",price:""});renderEntry()}
-function removeItem(i){if(items.length<=1)items=[{id:uid(),name:"",price:""}];else{const id=items[i].id;items.splice(i,1);delete claims[id];}renderEntry()}
-function clearAllItems(){if(confirm("Clear all items and start over?")){items=[{id:uid(),name:"",price:""}];claims={};renderEntry();}}
+function addItem(){items.push({id:uid(),name:"",price:"",ways:1});renderEntry()}
+function removeItem(i){if(items.length<=1)items=[{id:uid(),name:"",price:"",ways:1}];else{const id=items[i].id;items.splice(i,1);delete claims[id];delete panelOpen[id];}renderEntry()}
+function clearAllItems(){if(confirm("Clear all items and start over?")){items=[{id:uid(),name:"",price:"",ways:1}];claims={};panelOpen={};renderEntry();}}
 function addCharge(){charges.push({id:uid(),name:"",amount:""});renderEntry()}
 function addPerson(){people.push({id:uid(),name:"Person "+(people.length+1),ci:people.length%COLORS.length});if(document.getElementById("entry").classList.contains("active"))renderEntry();else renderAssign();}
 function removePerson(pid){
@@ -652,23 +664,40 @@ function renderAssign(){
   }).join("")+`<button onclick="addPerson()" style="width:32px;height:32px;border-radius:16px;border:2px dashed var(--border);background:transparent;font-size:18px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>`;
 
   const ap=people.find(p=>p.id===active);
-  document.getElementById("assign-hint").innerHTML=`Select <b>${ap?esc(ap.name):""}</b>, then tap what they ordered`;
+  document.getElementById("assign-hint").innerHTML=`Select <b>${ap?esc(ap.name):""}</b>, then tap what they ordered<br><span style="font-size:11px">Shared a plate? Hit <b>÷</b> to claim just your part</span>`;
 
   document.getElementById("assign-items").innerHTML=vi.map(it=>{
-    const cl=claims[it.id]||{};const mine=cl[active];
-    const claimers=Object.keys(cl);const n=claimers.length;
-    const tags=claimers.map(cid=>{const cp=people.find(p=>p.id===cid);if(!cp)return"";const cc=COLORS[cp.ci%COLORS.length];return`<span class="tag" style="background:${cc.bg}">${esc(cp.name)}</span>`}).join("");
-    return`<button class="item-btn${mine?" claimed":""}" onclick="toggleClaim('${it.id}')">
-      ${mine?'<div class="chk-on">✓</div>':'<div class="chk-off"></div>'}
-      <div style="flex:1">
-        <div style="font-weight:600;font-size:15px">${esc(it.name)}</div>
-        ${n>1?`<div style="font-size:11px;color:var(--muted)">Split ${n} ways → ${money(val(it.price)/n)} each</div>`:""}
-        ${n>0?`<div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap">${tags}</div>`:""}
+    const s=shareOf(it);
+    const price=val(it.price);
+    const claimers=Object.keys(s.amounts);
+    const mine=s.amounts[active]!==undefined;
+    const open=!!panelOpen[it.id];
+    const tags=claimers.map(cid=>{
+      const cp=people.find(p=>p.id===cid);if(!cp)return"";
+      const cc=COLORS[cp.ci%COLORS.length];
+      return`<span class="tag" style="background:${cc.bg}">${esc(cp.name)}${s.ways>1?" ×"+s.portions[cid]:""}</span>`;
+    }).join("");
+    let meta="";
+    if(s.ways>1)meta=`${s.ways} parts · ${money(s.per)} each${s.left>0?` · <b style="color:var(--accent)">${s.left} unclaimed</b>`:""}`;
+    else if(claimers.length>1)meta=`Split ${claimers.length} ways → ${money(price/claimers.length)} each`;
+    return`<div class="item-card${mine?" claimed":""}">
+      <div class="item-main">
+        <button class="item-hit" onclick="toggleClaim('${it.id}')">
+          ${mine?'<div class="chk-on">✓</div>':'<div class="chk-off"></div>'}
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:15px">${esc(it.name)}</div>
+            ${meta?`<div style="font-size:11px;color:var(--muted)">${meta}</div>`:""}
+            ${claimers.length?`<div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap">${tags}</div>`:""}
+          </div>
+          <div style="font-weight:700;font-size:15px;padding-left:6px">${money(price)}</div>
+        </button>
+        <button class="split-btn${(open||s.ways>1)?" on":""}" onclick="toggleSplitPanel('${it.id}')" title="Share this item">${s.ways>1?"÷"+s.ways:"÷"}</button>
       </div>
-      <div style="font-weight:700;font-size:15px">${money(val(it.price))}</div>
-    </button>`;
+      ${open?splitPanel(it):""}
+    </div>`;
   }).join("");
 
+  const unSub=vi.reduce((a,it)=>a+shareOf(it).unassigned,0);
   const tipBtns=[15,18,20,25].map(p=>`<button class="tip-btn${customTip===""&&tipPct===p?" active":""}" onclick="tipPct=${p};customTip='';renderAssign()">${p}%</button>`).join("");
   document.getElementById("assign-footer").innerHTML=`
     <div class="f-row"><span>Subtotal</span><span>${money(sub)}</span></div>
@@ -684,7 +713,8 @@ function renderAssign(){
     </div>
     <div class="f-row" style="font-weight:700;font-size:16px;border-top:2px solid var(--ink);padding-top:6px;margin-top:4px">
       <span>Total</span><span>${money(sub+tax+tc+tipAmt)}</span>
-    </div>`;
+    </div>
+    ${unSub>0.005?`<div class="f-row" style="color:var(--accent);font-weight:700;font-size:12px;padding-top:2px"><span>⚠️ Nobody claimed yet</span><span>${money(unSub)} of items</span></div>`:""}`;
   persist();
 }
 
@@ -692,16 +722,130 @@ function setActivePerson(pid){
   active=pid;
   renderAssign();
 }
-function updateAssignHint(){
-  const ap=people.find(p=>p.id===active);
-  if(ap)document.getElementById('assign-hint').innerHTML=`Select <b>${esc(ap.name)}</b>, then tap what they ordered`;
+
+
+// ═══════════════════════════════════════
+//  SHARING AN ITEM — "1 of 4", not "whatever's left"
+//  claims[itemId][personId] = true  → even split among whoever claims (ways === 1)
+//  claims[itemId][personId] = n     → n parts out of item.ways  (ways > 1)
+//  Parts nobody claims stay unassigned instead of silently landing on one person.
+// ═══════════════════════════════════════
+function partsOf(cl,pid){const v=cl[pid];return v===true?1:(Number(v)||0)}
+
+function shareOf(it){
+  const price=val(it.price);
+  const cl=claims[it.id]||{};
+  const ways=Math.max(1,parseInt(it.ways)||1);
+  const amounts={},portions={},notes={};
+  if(ways>1){
+    const per=price/ways;
+    let claimed=0;
+    people.forEach(p=>{
+      const q=partsOf(cl,p.id);
+      if(q>0){portions[p.id]=q;amounts[p.id]=per*q;notes[p.id]=q+" of "+ways;claimed+=q}
+    });
+    const left=Math.max(0,ways-claimed);
+    return{ways,per,amounts,portions,notes,claimed,left,unassigned:left*per};
+  }
+  const ids=people.filter(p=>cl[p.id]).map(p=>p.id);
+  const n=ids.length;
+  const per=n?price/n:price;
+  ids.forEach(pid=>{portions[pid]=1;amounts[pid]=per;if(n>1)notes[pid]="÷"+n});
+  return{ways:1,per,amounts,portions,notes,claimed:n,left:0,unassigned:n?0:price};
+}
+
+function claimedElsewhere(iid,pid){
+  const cl=claims[iid]||{};
+  return people.reduce((s,p)=>p.id===pid?s:s+partsOf(cl,p.id),0);
 }
 
 function toggleClaim(iid){
   if(!active)return;
+  const it=items.find(x=>x.id===iid);if(!it)return;
+  const ways=Math.max(1,parseInt(it.ways)||1);
   if(!claims[iid])claims[iid]={};
-  if(claims[iid][active])delete claims[iid][active];else claims[iid][active]=true;
+  const cl=claims[iid];
+  if(partsOf(cl,active)>0){delete cl[active]}
+  else if(ways===1){cl[active]=true}
+  else if(claimedElsewhere(iid,active)<ways){cl[active]=1}
+  else{panelOpen[iid]=true} // every part is spoken for — show the panel instead
   renderAssign();
+}
+
+function toggleSplitPanel(iid){
+  panelOpen[iid]=!panelOpen[iid];
+  renderAssign();
+}
+
+function setWays(iid,n){
+  const it=items.find(x=>x.id===iid);if(!it)return;
+  n=Math.max(1,Math.min(20,n));
+  const cl=claims[iid]||{};
+  if(n===1){
+    people.forEach(p=>{if(partsOf(cl,p.id)>0)cl[p.id]=true});
+  }else{
+    let used=0;
+    people.forEach(p=>{
+      const q=Math.min(partsOf(cl,p.id),n-used);
+      if(q>0){cl[p.id]=q;used+=q}else delete cl[p.id];
+    });
+  }
+  it.ways=n;
+  claims[iid]=cl;
+  panelOpen[iid]=true;
+  renderAssign();
+}
+
+function bumpClaim(iid,pid,d){
+  const it=items.find(x=>x.id===iid);if(!it)return;
+  const ways=Math.max(1,parseInt(it.ways)||1);
+  if(!claims[iid])claims[iid]={};
+  const cl=claims[iid];
+  if(ways===1){
+    if(d>0)cl[pid]=true;else delete cl[pid];
+  }else{
+    const q=Math.max(0,Math.min(ways-claimedElsewhere(iid,pid),partsOf(cl,pid)+d));
+    if(q>0)cl[pid]=q;else delete cl[pid];
+  }
+  renderAssign();
+}
+
+function splitPanel(it){
+  const s=shareOf(it);
+  const ways=s.ways;
+  const suggest=(it.qty>1&&ways!==it.qty)?`<button class="tip-btn" onclick="setWays('${it.id}',${it.qty})">receipt says ×${it.qty}</button>`:"";
+  const rows=people.map(p=>{
+    const c=COLORS[p.ci%COLORS.length];
+    const q=s.portions[p.id]||0;
+    const canAdd=ways>1?(s.claimed<ways):(q<1);
+    return`<div class="pline">
+      <div class="color-dot" style="background:${c.bg}"></div>
+      <div style="flex:1;min-width:0;font-size:14px;font-weight:${active===p.id?700:500};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</div>
+      <span style="font-size:12px;color:var(--muted);min-width:54px;text-align:right">${q?money(s.amounts[p.id]):""}</span>
+      <div class="stp">
+        <button onclick="bumpClaim('${it.id}','${p.id}',-1)" ${q<=0?"disabled":""}>−</button>
+        <b>${q}</b>
+        <button onclick="bumpClaim('${it.id}','${p.id}',1)" ${canAdd?"":"disabled"}>+</button>
+      </div>
+    </div>`;
+  }).join("");
+  return`<div class="split-panel">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+      <span class="label" style="margin:0">Split into</span>
+      <div class="stp">
+        <button onclick="setWays('${it.id}',${ways-1})" ${ways<=1?"disabled":""}>−</button>
+        <b>${ways}</b>
+        <button onclick="setWays('${it.id}',${ways+1})" ${ways>=20?"disabled":""}>+</button>
+      </div>
+      <span style="font-size:12px;color:var(--muted)">${ways>1?money(s.per)+" per part":"even split"}</span>
+      ${suggest}
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 6px">${ways>1?"Give each person the number of parts they had — 1 of 4 on the guac, 3 of 4 on the margaritas.":"Shared evenly between everyone who taps it. Bump this up to claim a fraction."}</p>
+    ${rows}
+    ${ways>1?`<div style="display:flex;justify-content:space-between;font-size:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-weight:700;color:${s.left>0?"var(--accent)":"var(--green)"}">
+      <span>${s.claimed} of ${ways} parts claimed</span><span>${s.left>0?money(s.unassigned)+" unassigned":"all covered ✓"}</span>
+    </div>`:""}
+  </div>`;
 }
 
 // ═══════════════════════════════════════
@@ -716,15 +860,17 @@ function renderSummary(){
   const tipAmt=sub*(tp/100);
   const grand=sub+tax+tc+tipAmt;
   const taxR=sub>0?tax/sub:0;const chR=sub>0?tc/sub:0;
-  _shareData={rows:[],grand,tip:tp};
+  const unSub=vi.reduce((a,it)=>a+shareOf(it).unassigned,0);
+  _shareData={rows:[],grand,tip:tp,unassigned:0};
 
   let html="";let allTotal=0;
   people.forEach(p=>{
     const c=COLORS[p.ci%COLORS.length];
     let pSub=0;const pItems=[];
     vi.forEach(it=>{
-      const cl=claims[it.id]||{};
-      if(cl[p.id]){const n=Object.keys(cl).length;const sh=val(it.price)/n;pSub+=sh;pItems.push({name:it.name,share:sh,split:n})}
+      const s=shareOf(it);
+      const amt=s.amounts[p.id];
+      if(amt!==undefined){pSub+=amt;pItems.push({name:it.name,share:amt,note:s.notes[p.id]||""})}
     });
     const pTax=pSub*taxR,pCh=pSub*chR,pTip=sub>0?(pSub/sub)*tipAmt:0;
     const pTotal=pSub+pTax+pCh+pTip;allTotal+=pTotal;
@@ -737,7 +883,7 @@ function renderSummary(){
       </div>`;
     if(pItems.length===0){html+=`<p style="color:var(--muted);font-size:13px">No items claimed</p>`}
     else{
-      pItems.forEach(ci=>{html+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span>${esc(ci.name)}${ci.split>1?` <span style="color:var(--muted)">(÷${ci.split})</span>`:""}</span><span style="font-weight:600">${money(ci.share)}</span></div>`});
+      pItems.forEach(ci=>{html+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span>${esc(ci.name)}${ci.note?` <span style="color:var(--muted)">(${ci.note})</span>`:""}</span><span style="font-weight:600">${money(ci.share)}</span></div>`});
       html+=`<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:6px">`;
       [["Items",pSub],["Tax",pTax],...(tc>0?[["Charges",pCh]]:[]),[`Tip (${tp}%)`,pTip]].forEach(([l,v])=>{
         html+=`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:1px 0"><span>${l}</span><span>${money(v)}</span></div>`;
@@ -747,9 +893,22 @@ function renderSummary(){
     html+=`</div>`;
   });
 
+  const unTotal=unSub>0?unSub+unSub*taxR+unSub*chR+(sub>0?(unSub/sub)*tipAmt:0):0;
+  _shareData.unassigned=unTotal;
+  if(unTotal>0.005){
+    html+=`<div class="share-card" style="border-left-color:var(--accent);background:#FFF8F0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:17px;color:var(--accent)">Nobody claimed this</span>
+        <span style="font-weight:800;font-size:22px;color:var(--accent)">${money(unTotal)}</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px">Parts of the bill no one took. Go back and assign them, or sort this bit out at the table.</p>
+    </div>`;
+  }
+
   html+=`<div style="background:var(--green-lt);border-radius:14px;padding:14px;font-size:13px;margin-top:6px">
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Verification</div>
     <div style="display:flex;justify-content:space-between"><span>All shares</span><span style="font-weight:700">${money(allTotal)}</span></div>
+    ${unTotal>0.005?`<div style="display:flex;justify-content:space-between"><span>Unclaimed</span><span style="font-weight:700">${money(unTotal)}</span></div>`:""}
     <div style="display:flex;justify-content:space-between"><span>Bill + ${tp}% tip</span><span style="font-weight:700">${money(grand)}</span></div>
   </div>`;
 
@@ -767,6 +926,7 @@ function shareSummary(){
   const date=new Date().toLocaleDateString();
   let txt="🧾 Split the Bill — "+date+"\n\n";
   d.rows.forEach(r=>{txt+=r.name+": "+money(r.total)+"\n"});
+  if(d.unassigned>0.005)txt+="Not claimed: "+money(d.unassigned)+"\n";
   txt+="\nTotal: "+money(d.grand)+" (incl. "+d.tip+"% tip)\n";
   txt+="\n— Split with SplitTheBill by BuBoTek\nsplit.bubotek.com";
   if(navigator.share){
