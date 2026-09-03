@@ -118,6 +118,7 @@
       <div class="progress-track"><div class="progress-fill" id="scan-progress" style="width:0%;background:var(--accent)"></div></div>
       <p style="font-size:15px;font-weight:600;text-align:center" id="scan-status">Preparing…</p>
       <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:4px" id="scan-sub">Processing locally on your device…</p>
+      <div id="scan-actions" style="margin-top:16px"></div>
     </div>
   </div>
 </div>
@@ -192,13 +193,16 @@
 
 <input type="file" id="cam-input" accept="image/*" capture="environment">
 <input type="file" id="gal-input" accept="image/*">
-<input type="file" id="add-photo-input" accept="image/*" capture="environment">
+<!-- No `capture` here on purpose: it forces the camera on iOS and removes the Photo
+     Library option, so a receipt already split into two saved photos can't be added. -->
+<input type="file" id="add-photo-input" accept="image/*">
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 const COLORS=[{bg:"#E86A33",lt:"#FFF0E8"},{bg:"#3A7BD5",lt:"#E8F0FF"},{bg:"#9B59B6",lt:"#F3E8FF"},{bg:"#E84393",lt:"#FFE8F3"},{bg:"#00B894",lt:"#E8FFF6"},{bg:"#FDCB6E",lt:"#FFF8E1"}];
 
-let items, charges, people, claims, tipPct, customTip, photos, active, panelOpen={};
+let items, charges, people, claims, tipPct, customTip, photos, active, panelOpen={}, lastPicker="gal-input";
+let tipMode="pct", tipAbs="", ocrSubtotal=0;
 
 function freshState(){
   if(photos)photos.forEach(p=>URL.revokeObjectURL(p.url));
@@ -209,6 +213,9 @@ function freshState(){
   claims={};
   tipPct=18;
   customTip="";
+  tipMode="pct";
+  tipAbs="";
+  ocrSubtotal=0;
   photos=[];
   active=null;
   const ti=document.getElementById("tax-input");
@@ -230,7 +237,7 @@ function persist(){
     const ti=document.getElementById("tax-input");
     const screen=document.querySelector(".screen.active")?.id||"home";
     localStorage.setItem(LS_KEY,JSON.stringify({
-      v:1,items,charges,people,claims,tipPct,customTip,active,
+      v:1,items,charges,people,claims,tipPct,customTip,tipMode,tipAbs,ocrSubtotal,active,
       tax:ti?ti.value:"",screen,ts:Date.now()
     }));
   }catch(e){}
@@ -253,6 +260,9 @@ function restore(){
     claims=s.claims||{};
     tipPct=(typeof s.tipPct==="number")?s.tipPct:18;
     customTip=s.customTip??"";
+    tipMode=s.tipMode==="amt"?"amt":"pct";
+    tipAbs=s.tipAbs??"";
+    ocrSubtotal=(typeof s.ocrSubtotal==="number")?s.ocrSubtotal:0;
     active=s.active||null;
     photos=[]; // blob URLs can't be restored — items were already extracted
     const ti=document.getElementById("tax-input");
@@ -285,7 +295,8 @@ document.getElementById("gal-input").addEventListener("change",handleNewPhoto);
 document.getElementById("add-photo-input").addEventListener("change",handleAddPhoto);
 
 async function handleNewPhoto(e){
-  const file=e.target.files?.[0];if(!file)return;e.target.value="";
+  const file=e.target.files?.[0];if(!file)return;
+  lastPicker=e.target.id;e.target.value="";
   const url=URL.createObjectURL(file);
   photos=[{id:uid(),url}];
 
@@ -294,9 +305,10 @@ async function handleNewPhoto(e){
   setProgress(0,"Enhancing image…");
 
   try{
-    const blob=await processImage(file);
+    const blob=await prepPhoto(file);
     setProgress(15,"Loading OCR engine…");
-    if(typeof Tesseract==="undefined") throw new Error("OCR engine not loaded — check your connection and reload");
+    setSub("First scan downloads the ~15 MB text engine — slower on cell data.");
+    if(typeof Tesseract==="undefined") throw new Error("OCR engine didn't load — check your connection and reload the page");
     setProgress(30,"Recognizing text…");
     const worker=await Tesseract.createWorker("eng",1,{
       logger:m=>{if(m.status==="recognizing text")setProgress(30+Math.round(m.progress*55),"Recognizing text…")}
@@ -308,7 +320,7 @@ async function handleNewPhoto(e){
     const result=parseReceipt(data.text);
 
     if(result.items.length>0){
-      items=result.items.map(it=>({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qty||1}));
+      items=result.items.map(it=>({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qtyHint||it.qty||1}));
     }else{
       items=[{id:uid(),name:"",price:"",ways:1}];
     }
@@ -317,20 +329,21 @@ async function handleNewPhoto(e){
       if(ti)ti.value=result.tax;
     }
     if(result.charges.length>0)charges=result.charges;
+    // Keep what the receipt claims its own subtotal is, so the entry screen can flag
+    // a mismatch — the usual cause is a two-page scan overlapping and double-adding.
+    ocrSubtotal=result.subtotal||0;
 
     setProgress(100,`Found ${result.items.length} items`);
-    document.getElementById("scan-sub").textContent="Review and fix anything wrong";
-    setTimeout(()=>go("entry"),700);
+    setSub(result.items.length?"Review and fix anything wrong":"Nothing readable on that one — add the items yourself");
+    setTimeout(()=>go("entry"),result.items.length?700:1200);
   }catch(err){
-    console.error(err);
-    setProgress(100,"OCR failed — entering manual mode");
-    document.getElementById("scan-sub").textContent=err?.message||err?.toString()||"Unknown error";
-    setTimeout(()=>go("entry"),1500);
+    scanFailed(err);
   }
 }
 
 async function handleAddPhoto(e){
-  const file=e.target.files?.[0];if(!file)return;e.target.value="";
+  const file=e.target.files?.[0];if(!file)return;
+  lastPicker=e.target.id;e.target.value="";
   const url=URL.createObjectURL(file);
   photos.push({id:uid(),url});
 
@@ -340,9 +353,9 @@ async function handleAddPhoto(e){
   setProgress(0,`Scanning page ${photos.length}…`);
 
   try{
-    const blob=await processImage(file);
+    const blob=await prepPhoto(file);
     setProgress(20,"Recognizing text…");
-    if(typeof Tesseract==="undefined") throw new Error("OCR engine not loaded — check your connection and reload");
+    if(typeof Tesseract==="undefined") throw new Error("OCR engine didn't load — check your connection and reload the page");
     const worker=await Tesseract.createWorker("eng",1,{
       logger:m=>{if(m.status==="recognizing text")setProgress(20+Math.round(m.progress*65),"Recognizing text…")}
     });
@@ -356,7 +369,7 @@ async function handleAddPhoto(e){
     if(result.items.length>0){
       // Remove empty placeholder if it's the only item
       if(items.length===1&&!items[0].name.trim()&&!items[0].price)items=[];
-      result.items.forEach(it=>items.push({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qty||1}));
+      result.items.forEach(it=>items.push({id:uid(),name:it.name,price:String(it.price),ways:1,qty:it.qtyHint||it.qty||1}));
     }
     // For tax, take the larger value (last page often has the total)
     if(result.tax>0){
@@ -367,13 +380,17 @@ async function handleAddPhoto(e){
     if(result.charges.length>0){
       result.charges.forEach(c=>charges.push(c));
     }
+    // Later pages usually carry the totals block; keep the larger figure.
+    if(result.subtotal>ocrSubtotal)ocrSubtotal=result.subtotal;
 
     setProgress(100,`Added ${result.items.length} items from page ${photos.length}`);
     setTimeout(()=>go("entry"),700);
   }catch(err){
+    // The page itself is already attached, so falling through to entry is fine here.
     console.error(err);
-    setProgress(100,"Page added (OCR failed)");
-    setTimeout(()=>go("entry"),1000);
+    setProgress(100,"Page added, but couldn't read it");
+    setSub(err?.message||"Add its items by hand");
+    setTimeout(()=>go("entry"),1800);
   }
 }
 
@@ -398,34 +415,82 @@ function setProgress(pct,msg){
   bar.style.width=pct+"%";
   bar.style.background=pct>=100?"var(--green)":"var(--accent)";
   document.getElementById("scan-status").textContent=msg;
+  document.getElementById("scan-actions").innerHTML="";
 }
+function setSub(msg){document.getElementById("scan-sub").textContent=msg}
+
+// A failed scan used to flash the real error for 1.5s and jump to manual entry, so
+// nobody could ever say what went wrong. Stop here instead and show it.
+function scanFailed(err){
+  console.error(err);
+  setProgress(100,"Couldn't read that receipt");
+  document.getElementById("scan-progress").style.background="#C0392B";
+  setSub(err?.message||String(err||"Unknown error"));
+  // Keep the first stack frames on screen. Without them a failure on someone else's
+  // phone is unreportable — the message alone doesn't say which step died.
+  const where=(err&&err.stack?String(err.stack).split("\n").slice(0,3).map(l=>l.trim()).join(" ← "):"").slice(0,240);
+  document.getElementById("scan-actions").innerHTML=
+    (where?`<p style="font-size:10px;line-height:1.4;color:var(--muted);word-break:break-all;text-align:left;margin:0 0 10px;max-height:56px;overflow:auto">${esc(where)}</p>`:"")+
+    `<button class="big-btn sec" style="max-width:100%;margin:0 0 8px;padding:13px;font-size:15px" onclick="retryScan()">↻ Try another photo</button>`+
+    `<button class="big-btn" style="max-width:100%;margin:0;padding:13px;font-size:15px" onclick="go('entry')">✏️ Enter items manually</button>`;
+}
+function retryScan(){document.getElementById(lastPicker||"gal-input").click()}
 
 // ═══════════════════════════════════════
 //  IMAGE PROCESSING
 // ═══════════════════════════════════════
+// Cleaning the photo up is an optimisation, not a requirement — Tesseract reads the
+// raw file fine. Never let a canvas failure on a phone kill the whole scan.
+async function prepPhoto(file){
+  try{return await processImage(file)}
+  catch(e){console.warn("preprocess skipped, using the original photo:",e);return file}
+}
+
 function processImage(file){
   return new Promise((resolve,reject)=>{
     const img=new Image();const url=URL.createObjectURL(file);
     img.onload=()=>{
       URL.revokeObjectURL(url);
-      const canvas=document.createElement("canvas");
-      let w=img.width,h=img.height;
-      const max=2000,min=800;
-      if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}
-      else if(w<min&&h<min){const s=min/Math.min(w,h);w=Math.round(w*s);h=Math.round(h*s)}
-      canvas.width=w;canvas.height=h;
-      const ctx=canvas.getContext("2d");
-      ctx.drawImage(img,0,0,w,h);
-      const d=ctx.getImageData(0,0,w,h),px=d.data;
-      for(let i=0;i<px.length;i+=4){
-        const g=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
-        const v=Math.max(0,Math.min(255,((g/255-.5)*1.5+.5)*255));
-        px[i]=px[i+1]=px[i+2]=v;
-      }
-      ctx.putImageData(d,0,0);
-      canvas.toBlob(b=>b?resolve(b):reject(new Error("Blob failed")),"image/png");
+      try{
+        let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+        if(!w||!h){reject(new Error("Photo decoded to zero size"));return}
+        const canvas=document.createElement("canvas");
+        // Character height is the single biggest lever on receipt OCR, so drive the
+        // LONG edge into a usable band rather than testing dimensions separately.
+        // The old rule only fired when both sides were under 800px, so a photo
+        // forwarded through iMessage (recompressed to ~1200px) was left untouched at
+        // ~20px characters — under Tesseract's floor. Upscaling adds no detail, but it
+        // gets the glyphs big enough for the engine to segment them.
+        const MAX=3000,MIN=1800,MAX_UPSCALE=2.5;
+        const longEdge=Math.max(w,h);
+        let s=1;
+        if(longEdge>MAX)s=MAX/longEdge;
+        else if(longEdge<MIN)s=Math.min(MIN/longEdge,MAX_UPSCALE);
+        if(s!==1){w=Math.max(1,Math.round(w*s));h=Math.max(1,Math.round(h*s))}
+        canvas.width=w;canvas.height=h;
+        const ctx=canvas.getContext("2d");
+        ctx.imageSmoothingEnabled=true;
+        try{ctx.imageSmoothingQuality="high"}catch(e){}
+        ctx.drawImage(img,0,0,w,h);
+        // Grayscale + contrast bump. Optional: getImageData allocates w*h*4 bytes and
+        // can throw on a memory-tight phone, and a plain resized photo still reads.
+        try{
+          const d=ctx.getImageData(0,0,w,h),px=d.data;
+          for(let i=0;i<px.length;i+=4){
+            const g=px[i]*.299+px[i+1]*.587+px[i+2]*.114;
+            const v=Math.max(0,Math.min(255,((g/255-.5)*1.5+.5)*255));
+            px[i]=px[i+1]=px[i+2]=v;
+          }
+          ctx.putImageData(d,0,0);
+        }catch(ge){console.warn("contrast pass skipped:",ge)}
+        // JPEG, deliberately. A multi-megabyte PNG of this canvas reliably kills the
+        // Tesseract worker on iOS Safari ("Attempted to assign to readonly property"),
+        // while the same photo as JPEG reads fine. Quality .95 keeps compression
+        // artifacts off the thin strokes OCR depends on.
+        canvas.toBlob(b=>b?resolve(b):reject(new Error("Couldn't prepare the photo — the browser ran out of memory encoding it")),"image/jpeg",.95);
+      }catch(e){reject(e instanceof Error?e:new Error(String(e)))}
     };
-    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Image load failed"))};
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Couldn't open that photo — the browser may not support its format (HEIC)"))};
     img.src=url;
   });
 }
@@ -435,7 +500,7 @@ function processImage(file){
 // ═══════════════════════════════════════
 function parseReceipt(raw){
   const lines=raw.split("\n").map(l=>l.trim()).filter(Boolean);
-  const items=[];
+  let items=[]; // reassigned by the subtotal sanity check below — must not be const
   let subtotal=0,tax=0,total=0;
   const charges=[];
 
@@ -528,8 +593,19 @@ function parseReceipt(raw){
     const qm=nm.match(qtyPfx);
     if(qm){qty=parseInt(qm[1]);nm=nm.slice(qm[0].length).trim()}
 
+    // A bare leading count — "5 Ranch Water  $80.00" — is a quantity too, and it's
+    // exactly what the ÷ split panel wants to offer. But "7 Layer Dip" is
+    // indistinguishable, so keep it as a HINT only: the name is left alone and the
+    // panel offers "receipt says ×5" for a tap. Deliberately not folded into `qty`,
+    // which feeds the price*qty subtotal check below and would blow it up.
+    let qtyHint=0;
+    if(qty===1){
+      const bare=nm.match(/^(\d{1,2})\s+[A-Za-z]/);
+      if(bare){const n=parseInt(bare[1]);if(n>1&&n<=20)qtyHint=n}
+    }
+
     nm=nm.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
-    items.push({name:nm,price:pv,qty});
+    items.push({name:nm,price:pv,qty,qtyHint});
   }
 
   // Sanity check: if we have a subtotal and the items don't add up to it (with tolerance),
@@ -624,7 +700,14 @@ function updateFooter(){
   const vi=items.filter(i=>i.name.trim()&&val(i.price)>0);
   const sub=vi.reduce((s,i)=>s+val(i.price),0);
   document.getElementById("items-count").textContent=`${vi.length} valid`;
+  // If OCR read the receipt's own subtotal, reconcile against it. A two-page scan
+  // whose photos overlap silently double-adds items, and this is where you'd see it.
+  const gap=ocrSubtotal>0?sub-ocrSubtotal:0;
+  const recon=ocrSubtotal>0?(Math.abs(gap)<0.02
+    ? `<div style="font-size:11px;color:var(--green);margin-bottom:8px">✓ Matches the receipt's subtotal of ${money(ocrSubtotal)}</div>`
+    : `<div style="font-size:11px;color:#C0392B;font-weight:600;margin-bottom:8px">⚠️ Receipt says ${money(ocrSubtotal)}, these items add to ${money(sub)} (${gap>0?"+":"−"}${money(gap)}). ${gap>0?"Check for lines scanned twice.":"Check for missed lines."}</div>`):"";
   document.getElementById("entry-footer").innerHTML=`
+    ${recon}
     <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:8px">
       <span>${vi.length} item${vi.length!==1?"s":""} · ${people.length} people</span>
       <span>Subtotal ${money(sub)}</span>
@@ -655,8 +738,7 @@ function renderAssign(){
   const sub=vi.reduce((s,i)=>s+val(i.price),0);
   const tax=val(document.getElementById("tax-input")?.value);
   const tc=charges.reduce((s,c)=>s+val(c.amount),0);
-  const tp=customTip!==""?val(customTip):tipPct;
-  const tipAmt=sub*(tp/100);
+  const tipAmt=tipOf(sub);
 
   document.getElementById("assign-people").innerHTML=people.map((p)=>{
     const c=COLORS[p.ci%COLORS.length];const on=active===p.id;
@@ -698,24 +780,58 @@ function renderAssign(){
   }).join("");
 
   const unSub=vi.reduce((a,it)=>a+shareOf(it).unassigned,0);
-  const tipBtns=[15,18,20,25].map(p=>`<button class="tip-btn${customTip===""&&tipPct===p?" active":""}" onclick="tipPct=${p};customTip='';renderAssign()">${p}%</button>`).join("");
+  const tipBtns=[15,18,20,25].map(p=>`<button class="tip-btn preset${(tipMode==="pct"&&customTip===""&&tipPct===p)?" active":""}" onclick="tipPct=${p};customTip='';tipMode='pct';renderAssign()">${p}%</button>`).join("");
+  const inpStyle="padding:3px 4px;border-radius:6px;border:1px solid var(--border);font-size:11px;font-family:inherit;outline:none";
+  // Note the oninput handlers: they must NOT call renderAssign(), which rewrites this
+  // footer and destroys the field mid-keystroke. They patch the two totals in place.
+  const tipControls=tipMode==="pct"
+    ? tipBtns+`<input type="number" inputmode="decimal" placeholder="__%" value="${esc(customTip)}" oninput="onTipInput(this)" style="width:48px;text-align:center;${inpStyle}">`
+    : `<span style="font-size:12px;color:var(--muted)">$</span><input type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${esc(tipAbs)}" oninput="onTipInput(this)" style="width:72px;text-align:right;${inpStyle}">`;
   document.getElementById("assign-footer").innerHTML=`
     <div class="f-row"><span>Subtotal</span><span>${money(sub)}</span></div>
     <div class="f-row"><span>Tax</span><span>${money(tax)}</span></div>
     ${tc>0?`<div class="f-row"><span>Charges</span><span>${money(tc)}</span></div>`:""}
     <div class="f-row">
       <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-        <span>Tip</span>${tipBtns}
-        <input type="number" inputmode="decimal" placeholder="__%" value="${esc(customTip)}" oninput="customTip=this.value;renderAssign()"
-          style="width:48px;padding:3px 4px;border-radius:6px;border:1px solid var(--border);font-size:11px;text-align:center;font-family:inherit;outline:none">
+        <span>Tip</span>
+        <button class="tip-btn${tipMode==="pct"?" active":""}" onclick="setTipMode('pct')">%</button>
+        <button class="tip-btn${tipMode==="amt"?" active":""}" onclick="setTipMode('amt')">$</button>
+        ${tipControls}
       </div>
-      <span>${money(tipAmt)}</span>
+      <span id="tip-amt">${money(tipAmt)}</span>
     </div>
     <div class="f-row" style="font-weight:700;font-size:16px;border-top:2px solid var(--ink);padding-top:6px;margin-top:4px">
-      <span>Total</span><span>${money(sub+tax+tc+tipAmt)}</span>
+      <span>Total</span><span id="grand-amt">${money(sub+tax+tc+tipAmt)}</span>
     </div>
     ${unSub>0.005?`<div class="f-row" style="color:var(--accent);font-weight:700;font-size:12px;padding-top:2px"><span>⚠️ Nobody claimed yet</span><span>${money(unSub)} of items</span></div>`:""}`;
   persist();
+}
+
+// ═══════════════════════════════════════
+//  TIP — a percentage of the items, or a flat dollar amount you write on the slip
+// ═══════════════════════════════════════
+function tipPctValue(){return customTip!==""?val(customTip):tipPct}
+function tipOf(sub){return tipMode==="amt"?val(tipAbs):sub*(tipPctValue()/100)}
+function tipLabel(){return tipMode==="amt"?"Tip":`Tip (${tipPctValue()}%)`}
+
+function setTipMode(m){tipMode=m;renderAssign()}
+
+function onTipInput(el){
+  if(tipMode==="amt")tipAbs=el.value;else customTip=el.value;
+  // A typed custom % supersedes the presets; clear their highlight without a re-render.
+  document.querySelectorAll("#assign-footer .tip-btn.preset").forEach(b=>b.classList.remove("active"));
+  refreshTotals();
+  persist();
+}
+
+function refreshTotals(){
+  const vi=items.filter(i=>i.name.trim()&&val(i.price)>0);
+  const sub=vi.reduce((s,i)=>s+val(i.price),0);
+  const tax=val(document.getElementById("tax-input")?.value);
+  const tc=charges.reduce((s,c)=>s+val(c.amount),0);
+  const t=tipOf(sub);
+  const te=document.getElementById("tip-amt");if(te)te.textContent=money(t);
+  const ge=document.getElementById("grand-amt");if(ge)ge.textContent=money(sub+tax+tc+t);
 }
 
 function setActivePerson(pid){
@@ -856,12 +972,12 @@ function renderSummary(){
   const sub=vi.reduce((s,i)=>s+val(i.price),0);
   const tax=val(document.getElementById("tax-input")?.value);
   const tc=charges.reduce((s,c)=>s+val(c.amount),0);
-  const tp=customTip!==""?val(customTip):tipPct;
-  const tipAmt=sub*(tp/100);
+  const tp=tipPctValue();
+  const tipAmt=tipOf(sub);
   const grand=sub+tax+tc+tipAmt;
   const taxR=sub>0?tax/sub:0;const chR=sub>0?tc/sub:0;
   const unSub=vi.reduce((a,it)=>a+shareOf(it).unassigned,0);
-  _shareData={rows:[],grand,tip:tp,unassigned:0};
+  _shareData={rows:[],grand,tip:tp,tipText:tipMode==="amt"?money(tipAmt)+" tip":tp+"% tip",unassigned:0};
 
   let html="";let allTotal=0;
   people.forEach(p=>{
@@ -885,7 +1001,7 @@ function renderSummary(){
     else{
       pItems.forEach(ci=>{html+=`<div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0"><span>${esc(ci.name)}${ci.note?` <span style="color:var(--muted)">(${ci.note})</span>`:""}</span><span style="font-weight:600">${money(ci.share)}</span></div>`});
       html+=`<div style="border-top:1px solid var(--border);margin-top:8px;padding-top:6px">`;
-      [["Items",pSub],["Tax",pTax],...(tc>0?[["Charges",pCh]]:[]),[`Tip (${tp}%)`,pTip]].forEach(([l,v])=>{
+      [["Items",pSub],["Tax",pTax],...(tc>0?[["Charges",pCh]]:[]),[tipLabel(),pTip]].forEach(([l,v])=>{
         html+=`<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:1px 0"><span>${l}</span><span>${money(v)}</span></div>`;
       });
       html+=`</div>`;
@@ -909,7 +1025,7 @@ function renderSummary(){
     <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Verification</div>
     <div style="display:flex;justify-content:space-between"><span>All shares</span><span style="font-weight:700">${money(allTotal)}</span></div>
     ${unTotal>0.005?`<div style="display:flex;justify-content:space-between"><span>Unclaimed</span><span style="font-weight:700">${money(unTotal)}</span></div>`:""}
-    <div style="display:flex;justify-content:space-between"><span>Bill + ${tp}% tip</span><span style="font-weight:700">${money(grand)}</span></div>
+    <div style="display:flex;justify-content:space-between"><span>Bill + ${tipMode==="amt"?money(tipAmt):tp+"%"} tip</span><span style="font-weight:700">${money(grand)}</span></div>
   </div>`;
 
   document.getElementById("summary-content").innerHTML=html;
@@ -927,7 +1043,7 @@ function shareSummary(){
   let txt="🧾 Split the Bill — "+date+"\n\n";
   d.rows.forEach(r=>{txt+=r.name+": "+money(r.total)+"\n"});
   if(d.unassigned>0.005)txt+="Not claimed: "+money(d.unassigned)+"\n";
-  txt+="\nTotal: "+money(d.grand)+" (incl. "+d.tip+"% tip)\n";
+  txt+="\nTotal: "+money(d.grand)+" (incl. "+(d.tipText||d.tip+"% tip")+")\n";
   txt+="\n— Split with SplitTheBill by BuBoTek\nsplit.bubotek.com";
   if(navigator.share){
     navigator.share({title:"Split the Bill",text:txt}).catch(()=>{});
